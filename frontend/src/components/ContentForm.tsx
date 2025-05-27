@@ -63,16 +63,18 @@ const formSchema = z.object({
     (channels) => {
       const hasEmail = channels.email?.enabled;
       const hasArticles = channels.articles?.enabled;
-      const hasPaidMedia = 
-        (channels.paid_media?.google_ads?.Search?.enabled) || 
-        (channels.paid_media?.google_ads?.Video?.enabled) || 
-        (channels.paid_media?.google_ads?.Performance_Max?.enabled) || 
-        (channels.paid_media?.linkedin_ads?.Feed?.enabled) || 
-        (channels.paid_media?.linkedin_ads?.Lead_Ad?.enabled) || 
-        (channels.paid_media?.meta_ads?.Feed?.enabled) || 
-        (channels.paid_media?.meta_ads?.Lead_Ad?.enabled);
+      const hasGoogleAds = 
+        channels.paid_media?.google_ads?.Search?.enabled || 
+        channels.paid_media?.google_ads?.Video?.enabled || 
+        channels.paid_media?.google_ads?.Performance_Max?.enabled;
+      const hasLinkedinAds = 
+        channels.paid_media?.linkedin_ads?.Feed?.enabled || 
+        channels.paid_media?.linkedin_ads?.Lead_Ad?.enabled;
+      const hasMetaAds = 
+        channels.paid_media?.meta_ads?.Feed?.enabled || 
+        channels.paid_media?.meta_ads?.Lead_Ad?.enabled;
       
-      return hasEmail || hasArticles || hasPaidMedia;
+      return hasEmail || hasArticles || hasGoogleAds || hasLinkedinAds || hasMetaAds;
     },
     {
       message: "Selecione pelo menos um canal",
@@ -90,14 +92,15 @@ interface ContentFormProps {
     name: string;
     email: string;
   };
+  savedData?: any;
 }
 
-const ContentForm = ({ onSubmit, isSubmitting, queryParams }: ContentFormProps) => {
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: queryParams.name || "",
-      email: queryParams.email || "",
+const ContentForm = ({ onSubmit, isSubmitting, queryParams, savedData }: ContentFormProps) => {
+  const getDefaultValues = () => {
+    // Prioridade: queryParams > savedData > valores padrão
+    const baseDefaults = {
+      name: "",
+      email: "",
       theme: "",
       persona: "",
       tone: "",
@@ -124,15 +127,29 @@ const ContentForm = ({ onSubmit, isSubmitting, queryParams }: ContentFormProps) 
           },
         },
       },
-    },
+    };
+
+    // Se há dados salvos, usar eles como base
+    if (savedData) {
+      Object.assign(baseDefaults, savedData);
+    }
+
+    // QueryParams têm prioridade sobre dados salvos
+    if (queryParams.name) baseDefaults.name = queryParams.name;
+    if (queryParams.email) baseDefaults.email = queryParams.email;
+
+    return baseDefaults;
+  };
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: getDefaultValues(),
   });
 
   useEffect(() => {
-    if (queryParams.name || queryParams.email) {
-      form.setValue("name", queryParams.name);
-      form.setValue("email", queryParams.email);
-    }
-  }, [queryParams, form]);
+    // Resetar o formulário quando os dados mudarem
+    form.reset(getDefaultValues());
+  }, [queryParams, savedData, form]);
 
   const handleFormSubmit = (values: FormValues) => {
     // Transformar os dados do formulário para o formato esperado pela API
@@ -232,6 +249,20 @@ const ContentForm = ({ onSubmit, isSubmitting, queryParams }: ContentFormProps) 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+        {savedData && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <p className="text-sm text-blue-700 font-medium">
+                Dados do último pedido carregados automaticamente
+              </p>
+            </div>
+            <p className="text-xs text-blue-600 mt-1">
+              Você pode editar qualquer campo conforme necessário.
+            </p>
+          </div>
+        )}
+
         <h2 className="text-xl font-semibold mb-4">Informações Básicas</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
